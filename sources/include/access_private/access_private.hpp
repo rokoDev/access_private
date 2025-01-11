@@ -34,6 +34,42 @@ namespace {
 // Some macros have the ABCD_IMPL form, which means they contain the
 // implementation details for the specific ABCD macro.
 
+#if defined(_MSC_VER) && !defined(__clang__)
+#define PRIVATE_ACCESS_DETAIL_DISABLE_WARNING_PUSH __pragma(warning(push))
+#define PRIVATE_ACCESS_DETAIL_DISABLE_WARNING_POP __pragma(warning(pop))
+#define PRIVATE_ACCESS_DETAIL_DISABLE_WARNING(warningNumber)                   \
+  __pragma(warning(disable : warningNumber))
+
+#define PRIVATE_ACCESS_DETAIL_DISABLE_WARNING_UNREFERENCED_FORMAL_PARAMETER    \
+  PRIVATE_ACCESS_DETAIL_DISABLE_WARNING(4100)
+#define PRIVATE_ACCESS_DETAIL_DISABLE_WARNING_UNREFERENCED_FUNCTION            \
+  PRIVATE_ACCESS_DETAIL_DISABLE_WARNING(4505)
+  // other warnings you want to deactivate...
+
+#elif defined(__GNUC__) || defined(__clang__)
+#define PRIVATE_ACCESS_DETAIL_DO_PRAGMA(X) _Pragma(#X)
+#define PRIVATE_ACCESS_DETAIL_DISABLE_WARNING_PUSH                             \
+  PRIVATE_ACCESS_DETAIL_DO_PRAGMA(GCC diagnostic push)
+#define PRIVATE_ACCESS_DETAIL_DISABLE_WARNING_POP                              \
+  PRIVATE_ACCESS_DETAIL_DO_PRAGMA(GCC diagnostic pop)
+#define PRIVATE_ACCESS_DETAIL_DISABLE_WARNING(warningName)                     \
+  PRIVATE_ACCESS_DETAIL_DO_PRAGMA(GCC diagnostic ignored warningName)
+
+#define PRIVATE_ACCESS_DETAIL_DISABLE_WARNING_UNREFERENCED_FORMAL_PARAMETER    \
+  PRIVATE_ACCESS_DETAIL_DISABLE_WARNING("-Wunused-parameter")
+#define PRIVATE_ACCESS_DETAIL_DISABLE_WARNING_UNREFERENCED_FUNCTION            \
+  PRIVATE_ACCESS_DETAIL_DISABLE_WARNING("-Wunused-function")
+  // other warnings you want to deactivate...
+
+#else
+#define PRIVATE_ACCESS_DETAIL_DISABLE_WARNING_PUSH
+#define PRIVATE_ACCESS_DETAIL_DISABLE_WARNING_POP
+#define PRIVATE_ACCESS_DETAIL_DISABLE_WARNING_UNREFERENCED_FORMAL_PARAMETER
+#define PRIVATE_ACCESS_DETAIL_DISABLE_WARNING_UNREFERENCED_FUNCTION
+  // other warnings you want to deactivate...
+
+#endif
+
 #define PRIVATE_ACCESS_DETAIL_CONCATENATE_IMPL(x, y) x##y
 #define PRIVATE_ACCESS_DETAIL_CONCATENATE(x, y)                                \
   PRIVATE_ACCESS_DETAIL_CONCATENATE_IMPL(x, y)
@@ -72,6 +108,8 @@ namespace {
   PRIVATE_ACCESS_DETAIL_ACCESS_PRIVATE(Tag, Class, Type, Name, Class::*)       \
   namespace {                                                                  \
     namespace access_private {                                                 \
+      PRIVATE_ACCESS_DETAIL_DISABLE_WARNING_PUSH                               \
+      PRIVATE_ACCESS_DETAIL_DISABLE_WARNING_UNREFERENCED_FUNCTION              \
       constexpr Type &Name(Class &&t) {                                        \
         return t.*get(private_access_detail::Tag{});                           \
       }                                                                        \
@@ -88,6 +126,7 @@ namespace {
           Name(const Class &t) {                                               \
         return t.*get(private_access_detail::Tag{});                           \
       }                                                                        \
+      PRIVATE_ACCESS_DETAIL_DISABLE_WARNING_POP                                \
     }                                                                          \
   }
 
