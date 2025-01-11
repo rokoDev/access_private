@@ -1,4 +1,4 @@
-#include "../include/access_private.hpp"
+#include <access_private/access_private.hpp>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -50,15 +50,15 @@ void test_access_private_in_xvalue_expr() {
 }
 
 namespace NS {
-class B {
-  int m_i = 3;
-
-public:
-  class C {
+  class B {
     int m_i = 3;
+
+  public:
+    class C {
+      int m_i = 3;
+    };
   };
-};
-} // NS
+} // namespace NS
 
 ACCESS_PRIVATE_FIELD(NS::B, int, m_i)
 void test_access_private_in_class_in_namespace() {
@@ -101,10 +101,7 @@ void test_access_private_const_object() {
   ASSERT(i == 3);
 }
 
-template <typename T>
-class TemplateA {
-  T m_i = 3;
-};
+template <typename T> class TemplateA { T m_i = 3; };
 
 ACCESS_PRIVATE_FIELD(TemplateA<int>, int, m_i)
 void test_access_private_template_field() {
@@ -143,13 +140,13 @@ void test_call_private_constexpr() {
 }
 
 // Uncomment to see error msg
-//class A2 {
-  //int m_f(int p) { return 14 * p; }
+// class A2 {
+// int m_f(int p) { return 14 * p; }
 //};
-//void test_call_private_different_types() {
-  //A2 a;
-  //int p = 3;
-  //auto res = call_private::m_f(a, p);
+// void test_call_private_different_types() {
+// A2 a;
+// int p = 3;
+// auto res = call_private::m_f(a, p);
 //}
 
 ACCESS_PRIVATE_STATIC_FIELD(A, int, s_i)
@@ -187,8 +184,7 @@ class A3 {
   int m_i = 3;
   int m_f(int x) { return x + m_i; }
   int m_f(int x, int y) { return x + y * m_i; }
-  template <typename T>
-  constexpr auto m_cxf(T x) const -> decltype(x + m_i) {
+  template <typename T> constexpr auto m_cxf(T x) const -> decltype(x + m_i) {
     return x + m_i;
   }
   template <typename T, typename U>
@@ -196,16 +192,15 @@ class A3 {
     return t + u;
   }
   constexpr static const char nums[] = "0123456789";
-  constexpr static char s_cxf(int a) {
-    return nums[a];
-  }
-  constexpr static const char* s_cxf(float f) {
+  constexpr static char s_cxf(int a) { return nums[a]; }
+  constexpr static const char *s_cxf(float f) {
     return nums + static_cast<int>(f * sizeof(nums) / sizeof(nums[0]));
   }
 };
 
 #if defined(__GNUC__)
-#define TEST_OVERLOADED_FUNCTIONS (__GNUC__ >= 5 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8))
+#define TEST_OVERLOADED_FUNCTIONS                                              \
+  (__GNUC__ >= 5 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8))
 #elif defined(__clang__)
 #define TEST_OVERLOADED_FUNCTIONS (__clang_major__ >= 14)
 #else
@@ -225,16 +220,16 @@ void test_call_private_overloaded() {
 
 using const_a3 = const A3;
 ACCESS_PRIVATE_FUN(const_a3, int(int) const, m_cxf)
-ACCESS_PRIVATE_FUN(const_a3, const char*(const char*) const, m_cxf)
+ACCESS_PRIVATE_FUN(const_a3, const char *(const char *) const, m_cxf)
 void test_call_private_overloaded_constexpr() {
   constexpr A3 a3;
   static_assert(call_private::m_cxf(a3, 10) == 13, "");
   constexpr const char data[] = "hello world";
-  static_assert(call_private::m_cxf(a3, data) == data+3, "");
+  static_assert(call_private::m_cxf(a3, data) == data + 3, "");
 }
 
 ACCESS_PRIVATE_STATIC_FUN(A3, int(char, int), s_f)
-ACCESS_PRIVATE_STATIC_FUN(A3, std::string(const char*, std::string), s_f)
+ACCESS_PRIVATE_STATIC_FUN(A3, std::string(const char *, std::string), s_f)
 void test_call_private_overloaded_static() {
   auto c = call_private_static::A3::s_f('A', 25);
   ASSERT(c == 'Z');
@@ -251,7 +246,7 @@ void test_call_private_overloaded_static_constexpr() {
 }
 */
 
-#endif  // TEST_OVERLOADED_FUNCTIONS
+#endif // TEST_OVERLOADED_FUNCTIONS
 
 int main() {
   test_access_private_in_lvalue_expr();
@@ -281,4 +276,3 @@ int main() {
   printf("OK\n");
   return 0;
 }
-

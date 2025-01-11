@@ -1,0 +1,166 @@
+version: 2.1
+
+commands:
+  clone_branch_or_pr:
+    description: "Checkout source code from corresponding pull request or branch. Submodules are not taken into account."
+    steps:
+      - run:
+          name: "checkout sources"
+          command: |
+            CLONE_URL="https://github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
+            echo "CLONE_URL: ${CLONE_URL}"
+            if [ -n "$CIRCLE_PULL_REQUEST" ]; then
+              PR_NUMBER=$(basename ${CIRCLE_PULL_REQUEST})
+            else
+              PR_NUMBER="nopr"
+            fi
+            if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" -eq "$PR_NUMBER" ] 2>/dev/null; then
+              echo "This is pull request: ${PR_NUMBER}"
+              git clone ${CLONE_URL}
+              cd ${CIRCLE_PROJECT_REPONAME}
+              BRANCH=pr${PR_NUMBER}
+              git fetch origin \"pull/${PR_NUMBER}/head:${BRANCH}\"
+              cd -
+            else
+              echo "This is simple branch: ${CIRCLE_BRANCH}"
+              git clone -b ${CIRCLE_BRANCH} --single-branch ${CLONE_URL}
+            fi
+  clone_docker_files:
+    description: "Download dockerfiles"
+    steps:
+      - run:
+          name: "checkout Dockerfile repo"
+          command: |
+            CLONE_URL="https://github.com/${CIRCLE_PROJECT_USERNAME}/Dockerfiles.git"
+            cd build
+            git clone -b master --single-branch ${CLONE_URL}
+            cd Dockerfiles
+            git checkout cbc51f708602237b385ba50eff7a742442f53d3d
+            cd ..
+            echo 'export DOCKERFILES_DIR="$CIRCLE_WORKING_DIRECTORY"/build/Dockerfiles' >> "$BASH_ENV"
+  configure_build_tests_x86_64:
+    description: "runs cmake configure and build and finally run unit tests"
+    parameters:
+      build_type:
+        type: string
+    steps:
+      - run:
+          name: "configure << parameters.build_type >>"
+          command: |
+            docker exec -it "build-test-host" bash -c "cmake -GNinja -DCMAKE_TOOLCHAIN_FILE=$BUILD_DIR/<< parameters.build_type >>/_deps/cmake-toolchains-src/gnu.cmake -DCMAKE_BUILD_TYPE=\"<< parameters.build_type >>\" -S $SOURCE_DIR -B $BUILD_DIR/<< parameters.build_type >>"
+      - run:
+          name: "build << parameters.build_type >>"
+          command: |
+            docker exec -it "build-test-host" bash -c "cd $BUILD_DIR/<< parameters.build_type >>; cmake --build . --config << parameters.build_type >>"
+      - run:
+          name: "run unit tests << parameters.build_type >>"
+          command: |
+            docker exec -it "build-test-host" bash -c "cd $BUILD_DIR/<< parameters.build_type >>; ctest -I ,,1 -C << parameters.build_type >> --output-on-failure"
+  configure_build_tests_s390x:
+    description: "runs cmake configure and build and finally run unit tests"
+    parameters:
+      build_type:
+        type: string
+    steps:
+      - run:
+          name: "configure << parameters.build_type >>"
+          command: |
+            docker exec -it build-host bash -c "cmake -GNinja -DCMAKE_TOOLCHAIN_FILE=$BUILD_DIR/Debug/_deps/cmake-toolchains-src/cross-linux-arch.cmake -DCMAKE_BUILD_TYPE=\"<< parameters.build_type >>\" -S $SOURCE_DIR -B $BUILD_DIR/<< parameters.build_type >>"
+      - run:
+          name: "build << parameters.build_type >>"
+          command: |
+            docker exec -it build-host bash -c "cd $BUILD_DIR/<< parameters.build_type >>; cmake --build . --config << parameters.build_type >>"
+      - run:
+          name: "run unit tests << parameters.build_type >>"
+          command: |
+            cd $BUILD_DIR/<< parameters.build_type >>
+            ctest --output-on-failure
+
+jobs:
+  ubuntu_x86_64:
+    machine:
+      image: ubuntu-2204:2023.10.1
+    resource_class: large
+    steps:
+      - run: printenv
+      - run:
+          name: Login to Dockerhub
+          command: |
+            echo "$DOCKERHUB_PULL_TOKEN" | docker login --username $DOCKERHUB_LOGIN --password-stdin
+      - clone_branch_or_pr
+      - run:
+          name: Create directories for Debug and Release builds
+          command: |
+            mkdir -p build/amd64/Debug
+            mkdir -p build/amd64/Release
+            echo 'export SOURCE_DIR="$CIRCLE_WORKING_DIRECTORY"/"$CIRCLE_PROJECT_REPONAME"' >> "$BASH_ENV"
+            echo 'export BUILD_DIR="$CIRCLE_WORKING_DIRECTORY"/build/amd64' >> "$BASH_ENV"
+      - clone_docker_files
+      - run:
+          name: Run docker container for amd64
+          command: |
+            . $DOCKERFILES_DIR/scripts/set-environment.sh -cc /usr/bin/gcc-12 -cxx /usr/bin/g++-12 -cv 12 -r /usr/bin/ranlib -s $SOURCE_DIR -b $BUILD_DIR -a amd64 -v
+            docker compose -f $DOCKERFILES_DIR/scripts/amd64/compose.yaml up -d
+      - run:
+          name: Mark source directory as safe to get rid of git error while getting hash of last change
+          command: |
+            docker exec -it "build-test-host" bash -c "git config --global --add safe.directory $SOURCE_DIR"
+      - configure_build_tests_x86_64:
+          build_type: 'Debug'
+      - configure_build_tests_x86_64:
+          build_type: 'Release'
+  ubuntu_s390x:
+    machine:
+      image: ubuntu-2204:2023.10.1
+    resource_class: large
+    environment:
+      DOCKER_BUILDKIT: 1
+    steps:
+      - run: printenv
+      - run:
+          name: Login to Dockerhub
+          command: |
+            echo "$DOCKERHUB_PULL_TOKEN" | docker login --username $DOCKERHUB_LOGIN --password-stdin
+      - run:
+          name: Enable run containers with different architectures
+          command: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+      - clone_branch_or_pr
+      - run:
+          name: Create directories for Debug and Release builds
+          command: |
+            mkdir -p build/s390x/Debug
+            mkdir -p build/s390x/Release
+            echo 'export SOURCE_DIR="$CIRCLE_WORKING_DIRECTORY"/"$CIRCLE_PROJECT_REPONAME"' >> "$BASH_ENV"
+            echo 'export BUILD_DIR="$CIRCLE_WORKING_DIRECTORY"/build/s390x' >> "$BASH_ENV"
+      - clone_docker_files
+      - run:
+          name: Run docker containers for build and test on s390x architecture
+          command: |
+            . $DOCKERFILES_DIR/scripts/set-environment.sh -s $SOURCE_DIR -b $BUILD_DIR -v
+            docker compose -f $DOCKERFILES_DIR/scripts/s390x/compose.yaml up -d
+      - run:
+          name: Mark source directory as safe to get rid of git error while getting hash of last change
+          command: |
+            docker exec -it build-host bash -c "git config --global --add safe.directory $SOURCE_DIR"
+      - configure_build_tests_s390x:
+          build_type: 'Debug'
+      - configure_build_tests_s390x:
+          build_type: 'Release'
+
+workflows:
+  build_and_test:
+    jobs:
+      - ubuntu_x86_64:
+          context:
+            - roko
+          filters:
+            branches:
+              only:
+                - master
+      - ubuntu_s390x:
+          context:
+            - roko
+          filters:
+            branches:
+              only:
+                - master

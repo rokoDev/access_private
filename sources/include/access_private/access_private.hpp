@@ -1,5 +1,5 @@
-#include <utility>
 #include <type_traits>
+#include <utility>
 
 #if __cplusplus == 201103L
 namespace std {
@@ -7,7 +7,7 @@ namespace std {
   using enable_if_t = typename enable_if<B, T>::type;
   template <class T>
   using remove_reference_t = typename remove_reference<T>::type;
-} // std
+} // namespace std
 #endif
 
 // Unnamed namespace is used to avoid duplicate symbols if the macros are used
@@ -54,9 +54,9 @@ namespace {
       using PRIVATE_ACCESS_DETAIL_CONCATENATE(PtrType_, Tag) =                 \
           PRIVATE_ACCESS_DETAIL_CONCATENATE(Alias_, Tag) PtrTypeKind;          \
       /* Explicit instantiation */                                             \
-      template struct private_access<                                          \
-          PRIVATE_ACCESS_DETAIL_CONCATENATE(Alias_, Tag) (PtrTypeKind),        \
-          &Class::Name, Tag>;                                                  \
+      template struct private_access<PRIVATE_ACCESS_DETAIL_CONCATENATE(        \
+                                         Alias_, Tag)(PtrTypeKind),            \
+                                     &Class::Name, Tag>;                       \
       /* Declare the friend function, now it is visible in namespace scope.    \
        * Note,                                                                 \
        * we could declare it inside the Tag type too, in that case ADL would   \
@@ -101,7 +101,7 @@ namespace {
                 std::enable_if_t<std::is_same<std::remove_reference_t<Obj>,    \
                                               Class>::value> * = nullptr,      \
                 typename... Args>                                              \
-      constexpr auto Name(Obj &&o, Args &&... args) -> decltype((              \
+      constexpr auto Name(Obj &&o, Args &&...args) -> decltype((               \
           static_cast<Obj &&>(o).*                                             \
           get(private_access_detail::Tag{}))(static_cast<Args &&>(args)...)) { \
         return (static_cast<Obj &&>(o).*get(private_access_detail::Tag{}))(    \
@@ -128,7 +128,7 @@ namespace {
     namespace call_private_static {                                            \
       namespace Class {                                                        \
         template <typename... Args>                                            \
-        constexpr auto Name(Args &&... args) -> decltype(get(                  \
+        constexpr auto Name(Args &&...args) -> decltype(get(                   \
             private_access_detail::Tag{})(static_cast<Args &&>(args)...)) {    \
           return get(private_access_detail::Tag{})(                            \
               static_cast<Args &&>(args)...);                                  \
@@ -155,4 +155,3 @@ namespace {
 #define ACCESS_PRIVATE_STATIC_FUN(Class, Type, Name)                           \
   PRIVATE_ACCESS_DETAIL_ACCESS_PRIVATE_STATIC_FUN(                             \
       PRIVATE_ACCESS_DETAIL_UNIQUE_TAG, Class, Type, Name)
-
