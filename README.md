@@ -1,3 +1,7 @@
+| **`Windows`** | **`Linux(x86/s390x)`** |
+|:-----------------:|:-----------------:|
+[![Build status](https://ci.appveyor.com/api/projects/status/p9rt39vrbcvn2fq8/branch/master?svg=true)](https://ci.appveyor.com/project/rokoDev/access-private/branch/master)|[![CircleCI](https://dl.circleci.com/status-badge/img/gh/rokoDev/access_private/tree/master.svg?style=shield)](https://dl.circleci.com/status-badge/redirect/gh/rokoDev/access_private/tree/master)|
+
 # Introduction
 
 This library is a collection of macros with which we can access private members.
@@ -77,7 +81,7 @@ It requires GCC >=4.8 or clang >=14 to access private overloaded functions.
 I think it would be filling a gap if we could have out-of-class friend declarations in C++. This can be implemented fairly easy, see https://github.com/martong/clang/tree/out-of-class_friend_attr .
 
 # Notes
-There is a [C++ standard *issue*](https://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#2118) that says: 
+There is a [C++ standard *issue*](https://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#2118) that says:
 > Stateful metaprogramming via friend injection techniques should be ill-formed
 
 The `::private_access_detail::private_access<...>` template class implements a friend function `get()`, which is used after class definition.
